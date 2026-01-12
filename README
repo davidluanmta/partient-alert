@@ -1,0 +1,71 @@
+Các bước để chạy
+Đề tài: REAL-TIME PATIENT MONITORING AND ALERTING WITH BIG DATA STREAMING FRAMEWORK
+Người thực hiện: Tiết Ngọc Lan - Lê Trọng Luân
+Ngày quay video: 10/01/2026
+Môn học: Phân tích dữ liệu ớn và điện toán đám mây - TS. Nguyễn Thanh Bình
+Mô tả ngắn gọn về đề tài: Em đang làm hệ thống dùng Apache Spark để xử lý dữ liệu hồ sơ sức khỏe bệnh nhân (đọc từ file Excel). 
+Mục tiêu là so sánh hiệu năng khi Spark chạy không phân tán (local) và chạy phân tán (2, 4, 6, 10 worker).
+Hệ thống chạy bằng Docker để mô phỏng cluster Spark trên cùng 1 máy. 
+Spark sẽ xử lý dữ liệu, phát hiện bệnh nhân có nguy cơ tim mạch cao, đo latency và throughput, sau đó xuất kết quả ra file CSV và vẽ biểu đồ so sánh.
+Lúc quay video em dùng Spark UI (localhost:8080) để chứng minh rõ có phân tán hay không thông qua số lượng worker, executor và task chạy song song.
+
+# 1. Reset cluster
+docker-compose down
+docker-compose up
+#2 Xóa topic cũ
+docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --delete --topic health-topic --bootstrap-server kafka:9092
+#3. Tạo lại topic Kafka
+docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --create --topic health-topic --partitions 1 --replication-factor 1 --bootstrap-server kafka:9092
+#4. Chạy Kafka Producer
+docker run --rm --network spark-iot-demo_default -v %cd%\data:/data health-producer
+
+#5.1 Chay khong phan tan
+- docker-compose down
+- docker exec -it spark-master bash -c "MODE=local /opt/spark/bin/spark-submit --master local[1] --conf spark.sql.shuffle.partitions=1 --conf spark.jars.ivy=/tmp/.ivy2 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 /opt/spark-apps/streaming_app.py"
+TOTAL RUN TIME: 89.63 seconds
+Processing batch 141
+#5.2. chay phan tan 2 worker
+- docker-compose down
+- docker-compose up -d --scale spark-worker=2
+- docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --create --topic health-topic --partitions 2 --replication-factor 1 --bootstrap-server kafka:9092
+- docker exec -it spark-master bash -c "MODE=cluster-2 /opt/spark/bin/spark-submit --master spark://spark-master:7077 --deploy-mode client --conf spark.executor.instances=2 --conf spark.executor.cores=1 --conf spark.executor.memory=2g --conf spark.sql.shuffle.partitions=2 --conf spark.jars.ivy=/tmp/.ivy2 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 /opt/spark-apps/streaming_app.py"
+TOTAL RUN TIME: 85.94 seconds
+Processing batch 83
+#5.3. chay phan tan 4 worker
+- docker-compose dow n
+- docker-compose up -d --scale spark-worker=4
+- docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --create --topic health-topic --partitions 4 --replication-factor 1 --bootstrap-server kafka:9092
+- docker exec -it spark-master bash -c "MODE=cluster-4 /opt/spark/bin/spark-submit --master spark://spark-master:7077 --deploy-mode client --conf spark.executor.instances=4 --conf spark.executor.cores=1 --conf spark.executor.memory=2g --conf spark.sql.shuffle.partitions=4 --conf spark.jars.ivy=/tmp/.ivy2 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 /opt/spark-apps/streaming_app.py"
+TOTAL RUN TIME: 85.26 seconds
+Processing batch 52
+#5.4. chay phan tan 6 worker
+- docker-compose down
+- docker-compose up -d --scale spark-worker=6
+- docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --create --topic health-topic --partitions 6 --replication-factor 1 --bootstrap-server kafka:9092
+- docker exec -it spark-master bash -c "MODE=cluster-6 /opt/spark/bin/spark-submit --master spark://spark-master:7077 --deploy-mode client --conf spark.executor.instances=6 --conf spark.executor.cores=1 --conf spark.executor.memory=2g --conf spark.sql.shuffle.partitions=6 --conf spark.jars.ivy=/tmp/.ivy2 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 /opt/spark-apps/streaming_app.py"
+TOTAL RUN TIME: 84.11 seconds
+Processing batch 31
+#5.5. chay phan tan 10 worker
+- docker-compose down
+- docker-compose up -d --scale spark-worker=10
+- docker exec -it kafka /opt/kafka/bin/kafka-topics.sh --create --topic health-topic --partitions 10 --replication-factor 1 --bootstrap-server kafka:9092
+- docker exec -it spark-master bash -c "MODE=cluster-10 /opt/spark/bin/spark-submit --master spark://spark-master:7077 --deploy-mode client --conf spark.executor.instances=10 --conf spark.executor.cores=1 --conf spark.executor.memory=2g --conf spark.sql.shuffle.partitions=10 --conf spark.jars.ivy=/tmp/.ivy2 --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.3 /opt/spark-apps/streaming_app.py"
+Processing batch 13
+TOTAL RUN TIME: 83.37 seconds
+
+
+1.Không phân tán
+TOTAL RUN TIME: 89.63 seconds
+Processing batch 141
+2.Phân tán 2 worker
+TOTAL RUN TIME: 85.94 seconds
+Processing batch 83
+3. Phân tán 4 worker
+TOTAL RUN TIME: 85.26 seconds
+Processing batch 52
+4. Phân tán 6 worker
+TOTAL RUN TIME: 84.11 seconds
+Processing batch 31
+5. Phân tán 10 worker
+TOTAL RUN TIME: 83.37 seconds
+Processing batch 13
